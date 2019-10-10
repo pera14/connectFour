@@ -26,6 +26,7 @@ var cpuWin = 0
 var scoreText = document.getElementById("score");
 const defect = (window.innerWidth) / 2 - 156
 var haveWinner = false
+
 function onMousedown(e) {
     if (!haveWinner) {
         x = e.pageX - defect;
@@ -43,7 +44,8 @@ function onMousedown(e) {
             playerCounter++
             currentPlayer = players[playerCounter % 2]
             
-            drawTable().then(
+            drawTable()
+            .then(
                 () => {
                     const winner = checkWinner(elements)
                     if (!winner) {
@@ -65,12 +67,14 @@ function onMousedown(e) {
 
 }
 
+
 function cpuPlays() {
     var now = new Date()
     var move = findBestMove()
-    console.log('Time:', ((new Date()) - now) / 1000);
+    console.log('Time:', ((new Date()) - now) / 1000,move);
     cpuLastPlay = move
     dj = 5 - rows[move]
+    console.log('dj',dj);
     rows[move]++
     var figura = elements[move][dj];
     figura.color = colors[currentPlayer]
@@ -175,9 +179,9 @@ function findBestMove() {
     var foundWinIn3Moves = false
     var currentDepth = -1
     var possibleMoves = JSON.parse(JSON.stringify(barepossibleMoves))
+    var disabledMoves= []
     while (predictArr.length && returnFound) {
         var currentMove = predictArr.shift()
-        // var possibleDepth3Moves = JSON.parse(JSON.stringify(barepossibleDepth3Moves))
         var finisDepth = false
         if (currentMove.depth != currentDepth) {
             currentDepth = currentMove.depth
@@ -188,22 +192,25 @@ function findBestMove() {
             console.log('fasterWin', i, currentMove.depth, foundWinIn3Moves, fasterWin);
             console.log('DangeousMoves', dangerousMove,possibleMoves);
             const keys = Object.keys(dangerousMove)
-            if (keys.length > 0) {
+            if (keys.length > 0 ) {
+                var max = -1
+                var value = -1
                 for (var i = 0; i < keys.length; i++) {
                     const key = keys[i]
-                    if (dangerousMove[key] > 30) {
+                    if (dangerousMove[key] > 24 && dangerousMove[key]>max && !disabledMoves.includes(parseInt(key))) {
                         console.log('Predustroznost ');
-                        return parseInt(key)
+                        max = dangerousMove[key]
+                        value = parseInt(key)
                     }
-                }
-            }
 
-            return fasterWin.position
+                }
+                if(value != -1)
+                    return value
+            }
+            if(possibleMoves.includes(fasterWin.position)){
+                return fasterWin.position
+            }
         }
-        // if(possibleMoves.length==1){
-        //     return possibleMoves[0]
-        // }
-        // console.log(currentMove.currentPlayer,currentMove.depth);
         if (currentMove.depth == 5) {
             const dj = cpuLastPlay != -1 ? rows[cpuLastPlay] : -1
             console.log('Possible depth 1 length', possibleMoves.length);
@@ -222,12 +229,13 @@ function findBestMove() {
 
                 return cpuLastPlay
             } else if (longestThird.length > 0) {
-                cpuLastPlay = longestThird[Math.floor(Math.random() * longestThird.length)];
+                cpuLastPlay = longestThird[Math.floor(Math.random() * (longestThird.length-1))];
                 returnFound = false
                 console.log('Return  random depth 3', currentMove.depth);
+
                 return cpuLastPlay
             } else if (possibleMoves.length > 1) {
-                cpuLastPlay = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                cpuLastPlay = possibleMoves[Math.floor(Math.random() * (possibleMoves.length-1))];
                 const dj = cpuLastPlay != -1 ? rows[cpuLastPlay] : -1
                 if (dj != -1 && elements[cpuLastPlay][5 - dj].owner == 'cpu' && 6 - dj > 2) {
                     returnFound = false
@@ -235,9 +243,9 @@ function findBestMove() {
 
                     return cpuLastPlay
                 } else {
-                    console.log('Return random but changed');
+                    console.log('Return random but changed',cpuLastPlay,possibleMoves);
                     const index = possibleMoves.indexOf(cpuLastPlay)
-                    cpuLastPlay = possibleMoves[index + 1 % possibleMoves.length];
+                    cpuLastPlay = possibleMoves[(index + 1) % possibleMoves.length];
                     returnFound = false
 
                     return cpuLastPlay
@@ -253,14 +261,13 @@ function findBestMove() {
                 returnFound = false
                 return loser.position
             } else {
-                cpuLastPlay = barePossibleMoves[Math.floor(Math.random() * barePossibleMoves.length)];
+                cpuLastPlay = barePossibleMoves[Math.floor(Math.random() * (barePossibleMoves.length-1))];
                 returnFound = false
                 console.log('Return  bare random');
                 return cpuLastPlay
             }
 
         }
-
         for (var i = 0; i < 6; i++) {
             var data = {}
             var trtElements = JSON.parse(JSON.stringify(currentMove.elements))
@@ -274,22 +281,15 @@ function findBestMove() {
                 var figura = trtElements[i][dj];
                 trtPlayerCounter++
                 var trtCurrentPlayer = players[trtPlayerCounter % 2]
-                // console.log('Trenutni user: ', trtCurrentPlayer, currentMove.depth);
-                
                 figura.owner = trtCurrentPlayer
                 figura.color = colors[trtCurrentPlayer]
                 const winner = checkWinner(trtElements)
                 if (winner) {
-                    // console.log(winner);
                     if (winner == 'cpu') {
                         //nasao resenje za cpu
-                        // console.log('Retur winner position:', currentMove.root,'Depth:',currentMove.depth,'Moves:',currentMove.moves,trtElements);
                         if (fasterWin != -1) {
-
                             const fj = trtRows[fasterWin.position]
                             const cj = trtRows[currentMove.root]
-                            // console.log(fj,cj);
-
                             if (cj < fj) {
                                 fasterWin = { 'position': currentMove.root, 'depth': currentMove.depth }
                             }
@@ -306,6 +306,7 @@ function findBestMove() {
                                         possibleMoves.splice(tt, 1);
                                     }
                                 }
+                                disabledMoves.push(i)
                             } else {
                                 console.log('Forced');
                                 returnFound = false
@@ -313,8 +314,6 @@ function findBestMove() {
                             }
                         } else if (currentMove.depth == 3) {
                             foundWinIn3Moves = true
-                            // dangerousMove = i
-                            // console.log('Iz 3. ce izgubiti', i);
                             if(i!=currentMove.root){
                                 if (i.toString() in dangerousMove) {
                                     dangerousMove[i]++
@@ -341,16 +340,16 @@ function findBestMove() {
                 }
             }
         }
-        if (fasterWin != -1 && (currentMove.depth == 3 && !foundWinIn3Moves)) {
+        if (fasterWin != -1 && (currentMove.depth == 4 && !foundWinIn3Moves)) {
             console.log('fasterWin in 3', fasterWin);
 
             return fasterWin.position
         }
     }
-
-    cpuLastPlay = barePossibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+    const random = Math.random()
+    cpuLastPlay = barePossibleMoves[Math.floor(random * (barePossibleMoves.length-1))];
     returnFound = false
-    console.log('Return  bare random');
+    console.log('Return  bare random 1',barePossibleMoves,random,random*(barePossibleMoves.length-1));
     return cpuLastPlay
 }
 function showWinner(winner){
@@ -363,16 +362,15 @@ function showWinner(winner){
     }
     haveWinner=true;
     scoreText.innerHTML = 'User ' + userWin + '-' + cpuWin + ' CPU'
-    resetButton.style.display = "inline";
+    resetButton.style.display = "block";
     winText.style.display = "inline-block";
 }
 function draw(){
-    resetButton.style.display = "inline";
+    resetButton.style.display = "block";
     drawText.style.display = "inline-block";
 }
 
 function init() {
-    // modalWin.style.display = "block";
     plays = 0
     resetButton.style.display = "none";
     winCpuIcon.style.display = "none";
@@ -385,7 +383,6 @@ function init() {
     playerCounter = Math.floor(Math.random() * 2); 
     rows = []
     currentPlayer = players[playerCounter]
-    // canvas.addEventListener('mousemove', onMousemove, false);
     canvas.addEventListener('mousedown', onMousedown, false);
     drawMatix();
     haveWinner =false
@@ -427,15 +424,17 @@ function drawMatix() {
     ctx.closePath();
 }
 async function drawTable() {
-    ctx.beginPath();
+    // ctx.beginPath();
     for (var i = 0; i < 6; i++) {
         for (var j = 0; j < 6; j++) {
             var figura = elements[i][j]
             drawCircle(i * cellSize + cellSize / 2, j * cellSize + cellSize / 2, figura.color)
         }
     }
-    ctx.fill();
-    ctx.closePath();
+    // ctx.fill();
+    // ctx.stroke()
+    // ctx.closePath();
+    // checkWinner()
 }
 function drawCircle(x, y, color) {
     ctx.beginPath();
