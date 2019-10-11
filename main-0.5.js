@@ -1,126 +1,121 @@
-var canvas = document.getElementById("gameTable");
-var ctx = canvas.getContext("2d");
 var resetButton = document.getElementById('resetButton');
 var winCpuIcon = document.getElementById('winCpu');
-var winUserIcon = document.getElementById('winUser');
-var winText = document.getElementById('pobedioText');
+var winPlayerIcon = document.getElementById('winPlayer');
+var winText = document.getElementById('winText');
 var drawText = document.getElementById('draw');
+var playerScore = document.getElementById("playerScore");
+var cpuScore = document.getElementById("cpuScore");
+document.documentElement.addEventListener('mousedown', onMousedown, false);
 
-ctx.clearRect(0, 0, canvas.width, canvas.height);
-var radius = 20;
-var cellSize = 52
+
 var elements = []
 var skipMoves = []
 var di = -1;
 var dj = -1;
-var colors = { 'user': '#ED3542', 'cpu': '#2c7db9' }
+var colors = { 'player': '#ED3542', 'cpu': '#2c7db9' }
+const freeColor = '#747474'
 var plays = 0
 var playerCounter = 0
 var rows = []
-var currentPlayer = 'user'
-var players = ['user', 'cpu']
+var currentPlayer = 'player'
+var players = ['player', 'cpu']
 var cpuLastPlay = -1
-var userLastPlay
-var userWin = 0;
+var playerWin = 0;
 var cpuWin = 0
-var scoreText = document.getElementById("score");
+
 const defect = (window.innerWidth) / 2 - 156
 var haveWinner = false
-
+var falling = false
 function onMousedown(e) {
-    if (!haveWinner) {
-        x = e.pageX - defect;
-        y = e.pageY;
-        di = Math.floor((x - 9) / cellSize);
-        if (rows[di] < 6) {
-            userLastPlay = di
-            dj = 5 - rows[di]
-            rows[di]++
-            elements = JSON.parse(JSON.stringify(elements))
-            var figura = elements[di][dj];
+    const id =e.target.id 
+    if (!haveWinner && id && !falling) {
+        x = id[1];
+        y = id[0];
+        if (rows[x] < 6) {
+            dj = 5 - rows[x]
+            rows[x]++
+            di = x
+            var figura = elements[x][dj];
             figura.color = colors[currentPlayer]
             figura.owner = currentPlayer
-            elements = JSON.parse(JSON.stringify(elements))
             playerCounter++
             currentPlayer = players[playerCounter % 2]
-            
-            drawTable()
-            .then(
-                () => {
-                    const winner = checkWinner(elements)
+            drawChange(x,dj,figura.color,() => {
+                    var ret = checkWinner(elements)
+                    var winner = ret['owner']
+                    var winArr = ret['winArr']
                     if (!winner) {
                         plays++
                         if(plays==36){
                             draw()
+                        }else{
+                            cpuPlays()
                         }
-                        cpuPlays()
                     }
                     else {
-                        console.log('POBDEDIO JE USER');
-                        showWinner('user')
+                        showWinner('player',winArr)
                     }
                 })
-
         }
     }
-
-
 }
 
 
+function drawChange(i,j,color,callBack){
+    falling = true
+    showFalling(i,0,color,j,callBack)
+}
+
+function showFalling(i,j,color,stop,callBack){
+    var interval = setInterval(function() {
+        if(j==0){
+            changeColor(i,j,color)
+        }
+        else if(j <=stop){
+            changeColor(i,j-1,freeColor)
+            changeColor(i,j,color)
+        }else{
+            falling = false
+            callBack()
+            clearInterval(interval)
+        }
+        j++;
+
+     }, 1000/12);
+}
 function cpuPlays() {
     var now = new Date()
     var move = findBestMove()
-    console.log('Time:', ((new Date()) - now) / 1000,move);
     cpuLastPlay = move
     dj = 5 - rows[move]
-    console.log('dj',dj);
     rows[move]++
     var figura = elements[move][dj];
     figura.color = colors[currentPlayer]
     figura.owner = currentPlayer
     playerCounter++
     currentPlayer = players[playerCounter % 2]
-    
-    drawTable().then(
-        () => {
-            const winner = checkWinner(elements)
+    drawChange(move,dj,figura.color,() => {
+            var ret = checkWinner(elements)
+            var winner = ret['owner']
+            var winArr = ret['winArr']
             if (winner == 'cpu') {
-                showWinner('cpu')
+                showWinner('cpu',winArr)
             }else{
                 plays++
                 if(plays==36){
                     draw()
                 }
             }
-
         }
     )
-}
-function removeUselessSkip() {
-    var trtArr = []
-    for (var i = 0; i < skipMoves.length; i++) {
-        console.log(skipMoves[i][0], cpuLastPlay.toString());
-
-        if (skipMoves[i][0] == cpuLastPlay.toString()) {
-            console.log('Proslo');
-
-            trtArr.push(skipMoves[i])
-        }
-
-    }
-    skipMoves = JSON.parse(JSON.stringify(trtArr))
-    // console.log('SkipMoves', skipMoves);
-
 }
 function findBestMove() {
     var predictArr = []
     var barepossibleMoves = []
     var barepossibleDepth3Moves = []
     var dangerousMove = {}
-    const currSkipArr = skipMoves
-    skipMoves = []
     var barePossibleMoves = []
+
     if (playerCounter == 1) {
         if (di == 3)
             return 2
@@ -149,11 +144,8 @@ function findBestMove() {
             var dj = 5 - trtRows[i]
             trtRows[i]++
             var figura = trtElements[i][dj];
-            // trtPlayerCounter++
-            // var trtCurrentPlayer = players[trtPlayerCounter % 2]
             figura.owner = trtCurrentPlayer
             figura.color = colors[trtCurrentPlayer]
-            // drawTable();
             data.rows = trtRows
             data.currentPlayer = trtCurrentPlayer
             data.elements = trtElements
@@ -161,7 +153,8 @@ function findBestMove() {
             data.playerCounter = trtPlayerCounter
             data.root = i
             data.depth = 1
-            const winner = checkWinner(trtElements)
+            var ret = checkWinner(trtElements)
+            var winner = ret['owner']
             if (winner) {
                 return i //Nasao resenje
             } else {
@@ -174,7 +167,6 @@ function findBestMove() {
         possibleDepth3Moves[barePossibleMoves[i].toString()] = barePossibleMoves[i]
     }
     var returnFound = true
-    var loser = -1
     var fasterWin = -1
     var foundWinIn3Moves = false
     var currentDepth = -1
@@ -188,21 +180,16 @@ function findBestMove() {
             finisDepth = true
         }
         if (finisDepth && fasterWin != -1 && currentMove.depth != 3) {
-
-            console.log('fasterWin', i, currentMove.depth, foundWinIn3Moves, fasterWin);
-            console.log('DangeousMoves', dangerousMove,possibleMoves);
             const keys = Object.keys(dangerousMove)
             if (keys.length > 0 ) {
                 var max = -1
                 var value = -1
                 for (var i = 0; i < keys.length; i++) {
                     const key = keys[i]
-                    if (dangerousMove[key] > 24 && dangerousMove[key]>max && !disabledMoves.includes(parseInt(key))) {
-                        console.log('Predustroznost ');
+                    if (dangerousMove[key] > 29 && dangerousMove[key]>max && !disabledMoves.includes(parseInt(key))) { //Predustroznost
                         max = dangerousMove[key]
                         value = parseInt(key)
                     }
-
                 }
                 if(value != -1)
                     return value
@@ -213,8 +200,6 @@ function findBestMove() {
         }
         if (currentMove.depth == 5) {
             const dj = cpuLastPlay != -1 ? rows[cpuLastPlay] : -1
-            console.log('Possible depth 1 length', possibleMoves.length);
-            console.log('Possible depth 3 length', possibleDepth3Moves);
             var longestThird = []
             var keys = Object.keys(possibleDepth3Moves)
             for(var i =0;i<keys.length;i++){
@@ -223,27 +208,20 @@ function findBestMove() {
                     longestThird = arr
                 }
             }
-            if (cpuLastPlay != -1 && possibleMoves.includes(cpuLastPlay) && elements[cpuLastPlay][5 - dj].owner == 'cpu' && 6 - dj > 2) {
+            if (cpuLastPlay != -1 && possibleMoves.includes(cpuLastPlay) && elements[cpuLastPlay][5 - dj].owner == 'cpu' && 6 - dj > 2) { //Vraca isto kao prosli potez
                 returnFound = false
-                console.log("Return same");
-
                 return cpuLastPlay
-            } else if (longestThird.length > 0) {
-                cpuLastPlay = longestThird[Math.floor(Math.random() * (longestThird.length-1))];
+            } else if (longestThird.length > 0) { // Vraca random od poteza koji nece izgubiti u 2. potezu
+                cpuLastPlay = longestThird[Math.floor(Math.random() * (longestThird.length-1))]; 
                 returnFound = false
-                console.log('Return  random depth 3', currentMove.depth);
-
                 return cpuLastPlay
-            } else if (possibleMoves.length > 1) {
+            } else if (possibleMoves.length > 1) { // Return random
                 cpuLastPlay = possibleMoves[Math.floor(Math.random() * (possibleMoves.length-1))];
                 const dj = cpuLastPlay != -1 ? rows[cpuLastPlay] : -1
                 if (dj != -1 && elements[cpuLastPlay][5 - dj].owner == 'cpu' && 6 - dj > 2) {
                     returnFound = false
-                    console.log('Return random');
-
                     return cpuLastPlay
-                } else {
-                    console.log('Return random but changed',cpuLastPlay,possibleMoves);
+                } else { // Return random
                     const index = possibleMoves.indexOf(cpuLastPlay)
                     cpuLastPlay = possibleMoves[(index + 1) % possibleMoves.length];
                     returnFound = false
@@ -253,17 +231,10 @@ function findBestMove() {
 
             } else if (possibleMoves.length == 1) {
                 returnFound = false
-                console.log('Return length 1');
-
                 return possibleMoves[0]
-            } else if (loser != -1) {
-                console.log('Returning loser');
-                returnFound = false
-                return loser.position
-            } else {
+            } else { //Return bas random random
                 cpuLastPlay = barePossibleMoves[Math.floor(Math.random() * (barePossibleMoves.length-1))];
                 returnFound = false
-                console.log('Return  bare random');
                 return cpuLastPlay
             }
 
@@ -283,7 +254,8 @@ function findBestMove() {
                 var trtCurrentPlayer = players[trtPlayerCounter % 2]
                 figura.owner = trtCurrentPlayer
                 figura.color = colors[trtCurrentPlayer]
-                const winner = checkWinner(trtElements)
+                var ret = checkWinner(trtElements)
+                var winner = ret['owner']
                 if (winner) {
                     if (winner == 'cpu') {
                         //nasao resenje za cpu
@@ -299,8 +271,6 @@ function findBestMove() {
                     } else { //user winner
                         if (currentMove.depth == 1) {
                             if (i == currentMove.root) {
-                                console.log('Nasao je kad ce iz sledeceg poteza biti gubitak',i);
-
                                 for (var tt = 0; tt < possibleMoves.length; tt++) {
                                     if (possibleMoves[tt] == currentMove.root) {
                                         possibleMoves.splice(tt, 1);
@@ -308,7 +278,6 @@ function findBestMove() {
                                 }
                                 disabledMoves.push(i)
                             } else {
-                                console.log('Forced');
                                 returnFound = false
                                 return i
                             }
@@ -341,27 +310,35 @@ function findBestMove() {
             }
         }
         if (fasterWin != -1 && (currentMove.depth == 4 && !foundWinIn3Moves)) {
-            console.log('fasterWin in 3', fasterWin);
-
             return fasterWin.position
         }
     }
     const random = Math.random()
     cpuLastPlay = barePossibleMoves[Math.floor(random * (barePossibleMoves.length-1))];
     returnFound = false
-    console.log('Return  bare random 1',barePossibleMoves,random,random*(barePossibleMoves.length-1));
     return cpuLastPlay
 }
-function showWinner(winner){
+
+function showWinner(winner,winArr){
+    for (var i = 0; i < 6; i++) {
+        for (var j = 0; j < 6; j++) {
+            var figura = elements[i][j]
+            figura.id.style.opacity=0.4
+        }
+    }
+    for(var i =0;i<winArr.length;i++){
+        document.getElementById(winArr[i]).style.opacity = 1
+    }
     if(winner == 'cpu'){
         winCpuIcon.style.display = "inline-block";
         cpuWin++
+        cpuScore.innerHTML = ''+cpuWin
     }else{
-        userWin++
-        winUserIcon.style.display = "inline-block";
+        playerWin++
+        winPlayerIcon.style.display = "inline-block";
+        playerScore.innerHTML = ''+playerWin
     }
     haveWinner=true;
-    scoreText.innerHTML = 'User ' + userWin + '-' + cpuWin + ' CPU'
     resetButton.style.display = "block";
     winText.style.display = "inline-block";
 }
@@ -374,73 +351,38 @@ function init() {
     plays = 0
     resetButton.style.display = "none";
     winCpuIcon.style.display = "none";
-    winUserIcon.style.display = "none";
+    winPlayerIcon.style.display = "none";
     winText.style.display = "none";
     drawText.style.display = "none";
     di = -1;
     dj = -1;
-    colors = { 'user': '#ED3542', 'cpu': '#2c7db9' }
     playerCounter = Math.floor(Math.random() * 2); 
     rows = []
     currentPlayer = players[playerCounter]
-    canvas.addEventListener('mousedown', onMousedown, false);
-    drawMatix();
+    
     haveWinner =false
     elements=[]
     for (var i = 0; i < 6; i++) {
         var row = []
         rows[i] = 0;
-
         for (var j = 0; j < 6; j++) {
             var figura = {}
             figura.owner = 'free'
-            figura.color = '#747474'
+            figura.color = freeColor
+            figura.id = document.getElementById(''+j+i);
+            figura.id.style.backgroundColor=freeColor
+            figura.id.style.opacity=1
             row.push(figura)
         }
         elements.push(row)
         row = []
     }
-    drawTable();
     if(playerCounter==1){
         cpuPlays()
     }
 }
-function drawMatix() {
-    ctx.beginPath();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.beginPath();
-    for (var i = 0; i < 7; i++) {
-        // ctx.fillStyle = '#000';
-        ctx.moveTo(i * cellSize, 0)
-        ctx.lineTo(i * cellSize, 6 * cellSize)
-        ctx.moveTo(0, i * cellSize)
-        ctx.lineTo(6 * cellSize, i * cellSize)
-        // ctx.moveTo(50, 50); 
-        // ctx.lineTo(450, 50); 
-        ctx.strokeStyle = "#666";
-        ctx.stroke();
-        
-    }
-    ctx.closePath();
-}
-async function drawTable() {
-    // ctx.beginPath();
-    for (var i = 0; i < 6; i++) {
-        for (var j = 0; j < 6; j++) {
-            var figura = elements[i][j]
-            drawCircle(i * cellSize + cellSize / 2, j * cellSize + cellSize / 2, figura.color)
-        }
-    }
-    // ctx.fill();
-    // ctx.stroke()
-    // ctx.closePath();
-    // checkWinner()
-}
-function drawCircle(x, y, color) {
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.closePath();
+function changeColor(i,j,color){
+    var figura = elements[i][j]
+    figura.id.style.backgroundColor = color
 }
 init();
